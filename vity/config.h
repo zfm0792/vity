@@ -6,7 +6,7 @@
 #include <sstream>
 #include <boost/lexical_cast.hpp>
 #include <yaml-cpp/yaml.h>
-#include "../vity/log.h"
+
 #include <vector>
 #include <list>
 #include <map>
@@ -14,6 +14,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+
+#include "log.h"
+#include "thread.h"
 
 namespace vity{
 
@@ -316,6 +319,7 @@ class ConfigVar : public ConfigVarBase{
 public:
     typedef std::shared_ptr<ConfigVar> ptr;
     typedef std::function<void (const T& old_value,const T& new_value)> on_change_cb;
+    typedef RWMutex RWMutexType;
 
     ConfigVar(const std::string& name,
             const T& default_val,
@@ -329,6 +333,9 @@ public:
     std::string toString() override
     {
         try{
+            // 在该类内部 调用时将val序列化为string  所以需要加写锁
+            // 将val变为string
+            RWMutexType::ReadLock lock(m_mutex);
             return ToStr()(m_val);
         }catch(std::exception& e){
             //typeid用于返回指针或引用所指对象的实际类型
@@ -341,6 +348,7 @@ public:
     bool fromString(const std::string& val) override
     {
         try{
+            // 改变值 是通过setValue 需要加写锁
            setValue(FromStr()(val));
         }catch(std::exception& e){
             //typeid用于返回指针或引用所指对象的实际类型
@@ -352,39 +360,57 @@ public:
 
     std::string getTypeName() const override { return typeid(T).name(); }
 
-    const T getValue() const { return m_val; }
+    const T getValue() { 
+        RWMutexType::ReadLock lock(m_mutex);
+        return m_val; 
+    }
 
     // setValue的使用到了比较运算
     void setValue(const T& v){ 
-        if(v == m_val) 
-            return;
+        // 保证读锁能被析构
+        {
+            RWMutexType::ReadLock lock(m_mutex);
+            if(v == m_val) 
+                return;
 
-        // 事件通知 --- 会通知到所有
-        for(auto& i : m_cbs){
-            i.second(m_val,v);
+            // 事件通知 --- 会通知到所有
+            for(auto& i : m_cbs){
+                i.second(m_val,v);
+            }
         }
-
+        RWMutexType::WriteLock lock(m_mutex);
         m_val = v;
     }
-
-    void addListener(uint64_t key,on_change_cb cb){
-        m_cbs[key] = cb;
+    // 通过外部传进来的值来控制唯一性 使用不方便
+    //void addListener(uint64_t key,on_change_cb cb){
+    uint64_t addListener(on_change_cb cb){
+        static uint64_t s_fun_id = 0;
+        // 改变m_cbs 需要加锁
+        RWMutexType::WriteLock lock(m_mutex);
+        ++s_fun_id;
+        m_cbs[s_fun_id] = cb;
+        return s_fun_id;
     }
 
     void delListener(uint64_t key){
+        // 写操作
+        RWMutexType::WriteLock lock(m_mutex);
         m_cbs.erase(key);
     }
 
     on_change_cb getListener(uint64_t key){
+        RWMutexType::ReadLock lock(m_mutex);
         auto it = m_cbs.find(key);
         return it == m_cbs.end() ? nullptr : it->second;
     }
 
     void clearListener(){
+        RWMutexType::WriteLock lock(m_mutex);
         m_cbs.clear();
     }
 
 private:
+    RWMutexType m_mutex;
     T  m_val;
     // 变更回调函数组 uint64_t key 要求唯一
     std::map<uint64_t,on_change_cb> m_cbs;
@@ -394,13 +420,14 @@ private:
 class Config{
 public:
     typedef std::map<std::string, ConfigVarBase::ptr> ConfigVarMap;
-
+    typedef RWMutex RWMutexType;
     // typename：指出模板声明（或定义）中的非独立名称（dependent names）是类型名，而非变量名
     // 如果存在 就直接返回 如果不存在  就创建
     template<class T>
     static typename ConfigVar<T>::ptr Lookup(const std::string& name,
             const T& default_value,const std::string& description = "")
     {
+        RWMutexType::WriteLock lock(GetMutex());
         auto it = GetDatas().find(name);
         if(it != GetDatas().end()) // 找到了
         {
@@ -432,6 +459,7 @@ public:
     template<class T>
     static typename ConfigVar<T>::ptr Lookup(const std::string& name)
     {
+        RWMutexType::ReadLock lock(GetMutex());
         auto it = GetDatas().find(name);
         if(it != GetDatas().end()){
             return std::dynamic_pointer_cast<ConfigVar<T> >(it->second);
@@ -442,12 +470,19 @@ public:
     static void LoadFromYaml(const YAML::Node& root);
     static ConfigVarBase::ptr LookupBase(const std::string& name);
 
+    // 提供一个访问ConfigVarMap 的方式 让调用方知道当前map有哪些内容
+    static void Visit(std::function<void(ConfigVarBase::ptr)> cb);
 private:
     // 类成员的静态初始化与静态成员函数的初始化可能冲突  相互依赖的问题
     //https://www.cnblogs.com/hangj/p/6567724.html
     static ConfigVarMap& GetDatas(){
         static ConfigVarMap s_datas;
         return s_datas;
+    }
+
+    static RWMutexType& GetMutex(){
+        static RWMutexType s_mutex;
+        return s_mutex;
     }
 };
 

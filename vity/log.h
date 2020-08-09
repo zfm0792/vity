@@ -11,14 +11,16 @@
 #include <iostream>
 #include <stdarg.h>
 #include <map>
+
 #include "utils.h"
 #include "singleton.h"
+#include "thread.h"
 
 #define VITY_LOG_LEVEL(logger,level) \
     if(logger->getLevel() <= level) \
         vity::LogEventWrap(vity::LogEvent::ptr(new vity::LogEvent(logger,level, \
                             __FILE__,__LINE__,0,vity::GetThreadId(),\
-                            vity::GetFiberId(),time(0),vity::GetThreadName()))).getSS()
+                            vity::GetFiberId(),time(0),vity::Thread::GetName()))).getSS()
 
 #define VITY_LOG_DEBUG(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::DEBUG)
 #define VITY_LOG_INFO(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::INFO)
@@ -31,7 +33,7 @@
     if(logger->getLevel() <= level) \
         vity::LogEventWrap(vity::LogEvent::ptr(new vity::LogEvent(logger, level, \
                         __FILE__, __LINE__, 0, vity::GetThreadId(),\
-                vity::GetFiberId(), time(0),vity::GetThreadName()))).getEvent()->format(fmt, __VA_ARGS__)
+                vity::GetFiberId(), time(0),vity::Thread::GetName()))).getEvent()->format(fmt, __VA_ARGS__)
 
 #define VITY_LOG_FMT_DEBUG(logger, fmt, ...) VITY_LOG_FMT_LEVEL(logger, vity::LogLevel::DEBUG, fmt, __VA_ARGS__)
 #define VITY_LOG_FMT_INFO(logger, fmt, ...)  VITY_LOG_FMT_LEVEL(logger, vity::LogLevel::INFO, fmt, __VA_ARGS__)
@@ -168,6 +170,7 @@ private:
 class LogFormatter{
 public:
     typedef std::shared_ptr<LogFormatter> ptr;
+    typedef Spinlock MutexType;
     // 构造函数
     // param[in] pattern 格式模板
     // details
@@ -216,6 +219,7 @@ private:
     std::vector<FormatItem::ptr> m_items;
     // 是否有错误
     bool m_error = false;
+    MutexType m_mutex;
 };
 
 // 日志输出地 -- 抽象类 需要 一个默认格式  输出的日志等级
@@ -224,7 +228,7 @@ class LogAppender{
 friend class Logger;
 public:
     typedef std::shared_ptr<LogAppender> ptr;
-
+    typedef Spinlock MutexType;
     // 析构函数
     virtual ~LogAppender() {}
 
@@ -236,16 +240,9 @@ public:
     virtual std::string toYamlString() = 0;
 
     // 更改日志格式器
-    void setFormatter(LogFormatter::ptr val){
-        m_formatter = val;
-        if(m_formatter){
-            m_hasFormatter = true;
-        }else{
-            m_hasFormatter = false;
-        }
-    }
+    void setFormatter(LogFormatter::ptr val);
     // 获取日志格式器
-    LogFormatter::ptr getFormatter() const { return m_formatter; }
+    LogFormatter::ptr getFormatter();
 
     // 获取日志等级
     LogLevel::Level getLevel() const { return m_level; }
@@ -256,6 +253,7 @@ protected:
     LogFormatter::ptr m_formatter; // 日志格式
     // 是否有自己的日志格式器
     bool m_hasFormatter = false;
+    MutexType m_mutex;
 };
 
 // 日志器 -- 输出  即输出到每个logappender中  最终使用的其实就是日志器
@@ -270,6 +268,7 @@ class Logger : public std::enable_shared_from_this<Logger>
     friend class LogManager;
 public:
     typedef std::shared_ptr<Logger> ptr;
+    typedef Spinlock MutexType;
 
     // 构造函数
     // param[in] name 日志器名称
@@ -314,6 +313,7 @@ private:
     std::list<LogAppender::ptr> m_appenders; //Appender集合
     LogFormatter::ptr m_formatter; // 日志格式
     Logger::ptr m_root; // 主日志器
+    MutexType m_mutex;
 };
 
 // 输出到控制台的Appender
@@ -339,10 +339,12 @@ private:
     std::string m_filename;
     // 文件流
     std::ofstream m_filestream;
+    uint64_t m_lastTime = 0;
 };
 // 日志器管理类
 class LogManager{
 public:
+    typedef Spinlock MutexType;
     // 构造函数
     LogManager();
     // 获取日志器
@@ -360,6 +362,7 @@ private:
     std::map<std::string,Logger::ptr> m_loggers;
     // 主日志器
     Logger::ptr m_root;
+    MutexType m_mutex;
 };
 // 日志器管理类单例模式
 typedef Singleton<LogManager> LoggerMgr;

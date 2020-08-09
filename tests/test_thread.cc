@@ -24,21 +24,37 @@ void func2()
     }
 }
 
+void fun2() {
+    while(true) {
+        VITY_LOG_INFO(g_logger) << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+    }
+}
+
+void fun3() {
+    while(true) {
+        VITY_LOG_INFO(g_logger) << "========================================";
+    }
+}
+
 int main()
 {
     VITY_LOG_INFO(g_logger) << "thread test start";
-    // vity::Thread::SetName("main thread");
+    vity::Thread::SetName("main thread");
 
+    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/log2.yml");
+    vity::Config::LoadFromYaml(root);
     std::vector<vity::Thread::ptr> thrs;
 
-    for(int i = 0; i < 5; i++){
-        vity::Thread::ptr thr(new vity::Thread(&func2,"name_"+std::to_string(i)));
+    for(int i = 0; i < 2; i++){
+        
+        vity::Thread::ptr thr(new vity::Thread(&fun2,"name_"+std::to_string(i*2)));
+        vity::Thread::ptr thr2(new vity::Thread(&fun3,"name_"+std::to_string(i*2+1)));
         thrs.push_back(thr);
+        thrs.push_back(thr2);
     }
-    for(int i = 0; i < 5; i++){
+    for(size_t i = 0; i < thrs.size(); i++){
         thrs[i]->join();
     }
     VITY_LOG_INFO(g_logger) << "thread test end";
-    VITY_LOG_INFO(g_logger) << " count= "<< count;
     return 0;
 }
