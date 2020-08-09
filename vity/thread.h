@@ -211,7 +211,6 @@ public:
         pthread_rwlock_detroy(&q_lock);
 */
 class RWMutex{
-
 public:
     typedef ReadScopedLockImpl<RWMutex> ReadLock;
     typedef WriteScopedLockImpl<RWMutex> WriteLock;
@@ -325,8 +324,6 @@ private:
 };
 
 }
-
-
 
 /*
     linux线程同步常用方式
