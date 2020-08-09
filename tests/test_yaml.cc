@@ -193,7 +193,7 @@ void test_class()
 
 
     XX_PM(g_person_map, "class.map before");
-    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/test.yaml");
+    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/test.yml");
     vity::Config::LoadFromYaml(root);
     VITY_LOG_INFO(VITY_LOG_ROOT())<< "after: "<< g_person->getValue().toString() << "-"<< g_person->toString();
     XX_PM(g_person_map, "class.map after");
@@ -204,7 +204,7 @@ void test_log()
     static vity::Logger::ptr system_log = VITY_LOG_NAME("system");
     VITY_LOG_INFO(system_log) << "hello system" << std::endl;
     std::cout << vity::LoggerMgr::GetInstance()->toYamlString() << std::endl;
-    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/log.yaml");
+    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/log.yml");
     vity::Config::LoadFromYaml(root);
     std::cout << "=============" << std::endl;
     std::cout << vity::LoggerMgr::GetInstance()->toYamlString() << std::endl;
@@ -212,7 +212,7 @@ void test_log()
     std::cout << root << std::endl;
     VITY_LOG_INFO(system_log) << "hello system" << std::endl;
 
-    system_log->setFormatter("%d - %m%n");
+    system_log->setFormatter("%d-%m%n");
     VITY_LOG_INFO(system_log) << "hello system" << std::endl;
 }
 

@@ -22,7 +22,7 @@
 
 #define VITY_LOG_DEBUG(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::DEBUG)
 #define VITY_LOG_INFO(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::INFO)
-#define VITY_LOG_WARN(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::WARN)
+#define VITY_LOG_WARN(logger) VITY_LOG_LEVEL(logger,vi ty::LogLevel::WARN)
 #define VITY_LOG_ERROR(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::ERROR)
 #define VITY_LOG_FATAL(logger) VITY_LOG_LEVEL(logger,vity::LogLevel::FATAL)
 

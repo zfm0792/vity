@@ -8,24 +8,38 @@ include_directories(.)
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
 
-find_library(YAMLCPP yaml-cpp)
-message("***", ${YAMLCPP})
+# find_library(YAMLCPP yaml-cpp)
+# message("***", ${YAMLCPP})
+
+# find_library(PTHREAD pthread)
+# message("***", ${PTHREAD})
+
+set(LIBS
+        vity
+        pthread
+        yaml-cpp)
+message("***", ${LIBS})
 
 set(LIB_SRC
     vity/log.cc
     vity/utils.cc
     vity/config.cc
+    vity/thread.cc
     )
 
 add_library(vity SHARED ${LIB_SRC})
 
 add_executable(test tests/tests.cc)
 add_dependencies(test vity)
-target_link_libraries(test vity ${YAMLCPP})
+target_link_libraries(test ${LIBS})
 
 add_executable(test_yaml tests/test_yaml.cc)
 add_dependencies(test_yaml vity)
-target_link_libraries(test_yaml vity ${YAMLCPP})
+target_link_libraries(test_yaml ${LIBS})
+
+add_executable(test_thread tests/test_thread.cc)
+add_dependencies(test_thread vity)
+target_link_libraries(test_thread ${LIBS})
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

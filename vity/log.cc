@@ -631,8 +631,6 @@ public:
                     ld.appenders.push_back(lad);
                 }
             }
-            //std::cout << "---" << ld.name << " - "
-            //          << ld.appenders.size() << std::endl;
             vec.insert(ld);
         }
         return vec;
