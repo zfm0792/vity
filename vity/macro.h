@@ -8,7 +8,7 @@
 
 #define VITY_ASSERT(x) \
     do{ \
-        if(!x){ \
+        if(!(x)){ \
             VITY_LOG_ERROR(VITY_LOG_ROOT())<< "ASSERTION: " #x \
                 << "\nbacktrace:\n" \
                 << vity::BacktraceToString(100,2,"    "); \

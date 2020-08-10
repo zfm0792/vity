@@ -25,6 +25,7 @@ set(LIB_SRC
     vity/utils.cc
     vity/config.cc
     vity/thread.cc
+    vity/fiber.cc
     )
 
 add_library(vity SHARED ${LIB_SRC})
@@ -44,6 +45,10 @@ target_link_libraries(test_thread ${LIBS})
 add_executable(test_util tests/test_util.cc)
 add_dependencies(test_util vity)
 target_link_libraries(test_util ${LIBS})
+
+add_executable(test_fiber tests/test_fiber.cc)
+add_dependencies(test_fiber vity)
+target_link_libraries(test_fiber ${LIBS})
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
