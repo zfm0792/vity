@@ -11,17 +11,18 @@ void func1()
     sleep(60);
 }
 int count = 0;
-//vity::Semphore sem(2);
+vity::Semphore sem;
 //vity::NullMutex s_mutex;
 vity::RWMutex s_rwmutex;
 void func2()
 {
-    for(int i = 0; i < 10000000;i++){
-        vity::RWMutex::ReadLock lock(s_rwmutex);
-        //sem.wait();
+    sem.wait();
+    VITY_LOG_INFO(g_logger) << "child thread test 2";
+    for(int i = 0; i < 10000;i++){
+        //vity::RWMutex::ReadLock lock(s_rwmutex);
         count++;
-        //sem.notify();
     }
+    VITY_LOG_INFO(g_logger) << "child thread test 3";
 }
 
 void fun2() {
@@ -41,20 +42,21 @@ int main()
     VITY_LOG_INFO(g_logger) << "thread test start";
     vity::Thread::SetName("main thread");
 
-    YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/log2.yml");
-    vity::Config::LoadFromYaml(root);
+    // YAML::Node root = YAML::LoadFile("/home/fredzhan/vity/bin/conf/log2.yml");
+    // vity::Config::LoadFromYaml(root);
     std::vector<vity::Thread::ptr> thrs;
 
-    for(int i = 0; i < 2; i++){
         
-        vity::Thread::ptr thr(new vity::Thread(&fun2,"name_"+std::to_string(i*2)));
-        vity::Thread::ptr thr2(new vity::Thread(&fun3,"name_"+std::to_string(i*2+1)));
-        thrs.push_back(thr);
-        thrs.push_back(thr2);
-    }
-    for(size_t i = 0; i < thrs.size(); i++){
-        thrs[i]->join();
-    }
+    vity::Thread::ptr thr(new vity::Thread(&func2,"name_"+std::to_string(1)));
+
+
+    VITY_LOG_INFO(g_logger) << "main thread test ";
+    sleep(2);
+    VITY_LOG_INFO(g_logger) << "main thread test ";
+    sem.notify();
+    VITY_LOG_INFO(g_logger) << "main thread test 2";
+    thr->join();
+    VITY_LOG_INFO(g_logger) << "count="<<count;
     VITY_LOG_INFO(g_logger) << "thread test end";
     return 0;
 }

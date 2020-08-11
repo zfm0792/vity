@@ -9,6 +9,7 @@
 namespace vity{
 
 class Fiber : public std::enable_shared_from_this<Fiber>{
+friend class Scheduler;
 public:
     typedef std::shared_ptr<Fiber> ptr;
 
@@ -27,7 +28,7 @@ private:
 
 public:
     // 子协程
-    Fiber(std::function<void()> cb,size_t stacksize = 0);
+    Fiber(std::function<void()> cb,size_t stacksize = 0,bool use_call = false);
     ~Fiber();
 
     // 重置协程函数
@@ -37,6 +38,9 @@ public:
     void swapIn();
     // 切换到后台执行
     void swapOut();
+
+    void call();
+    void back();
 
     uint64_t getId() const { return m_id; }
     State getState() const { return m_state; }
@@ -54,6 +58,7 @@ public:
     static uint64_t TotalFibers();
 
     static void MainFunc();
+    static void CallerMainFunc();
     static uint64_t GetFiberId();
 private:
 

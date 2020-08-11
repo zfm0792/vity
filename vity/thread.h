@@ -26,7 +26,7 @@ class Semphore{
 
 public:
     Semphore(uint32_t count = 0){
-        // 在进程内线程共享 信号量值为10
+        // 在进程内线程共享 信号量值为0
         if(sem_init(&m_semaphore,0,count)){
             throw std::logic_error("sem_init error");
         }
@@ -321,6 +321,8 @@ private:
     pthread_t m_thread = 0;
     std::function<void()> m_cb;
     std::string m_name;
+
+    Semphore m_semphore;
 };
 
 }

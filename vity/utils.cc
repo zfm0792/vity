@@ -3,8 +3,6 @@
 
 #include "log.h"
 
-
-
 namespace vity {
 
 vity::Logger::ptr g_logger = VITY_LOG_NAME("system");

@@ -34,26 +34,34 @@ struct _libc_fpstate __fpregs_mem;
 }
 
 
+ucontext_t child1,main1;
 void fun1(void* arg)
 {
+
     puts("1");
     puts("11");
     puts("111");
     puts("1111");
+    swapcontext(&child1,&main1);
     puts("11111");
     puts("111111");
+    swapcontext(&child1,&main1);
 }
 
 void context_test()
 {
-    char stack[1024*128];
-    ucontext_t child1,main1;
+    void *stack = malloc(1024*1024);
+    if(stack == nullptr)
+    {
+        return;
+    }
+    getcontext(&main1); // 获取上下文
 
     getcontext(&child1); // 获取上下文
     child1.uc_stack.ss_sp = stack; // 设置栈帧起始
-    child1.uc_stack.ss_size = sizeof(stack); // 设置栈大小
+    child1.uc_stack.ss_size = 1024*1024; // 设置栈大小
     child1.uc_stack.ss_flags = 0;
-    child1.uc_link = NULL; // 设置后继上下文
+    child1.uc_link = nullptr; // 设置后继上下文
 
     makecontext(&child1,(void(*)(void))fun1,0); // 修改上下文指向
 
@@ -67,7 +75,7 @@ void run_in_fiber()
 {
     VITY_LOG_INFO(g_logger) << "run_in_fiber begin";
     vity::Fiber::YieldToHold();
-    VITY_LOG_INFO(g_logger) << "run_in_fiber hold";
+    VITY_LOG_INFO(g_logger) << "run_in_fuiber hold";
     vity::Fiber::YieldToHold();
     VITY_LOG_INFO(g_logger) << "run_in_fiber end";
 }
@@ -76,22 +84,29 @@ void test_fiber()
 {
     VITY_LOG_INFO(g_logger) << "main begin -1";
     {
+        // getcontext
+        // makecontext ----- 子协程
+        // swapcontext
+        // 主协程的上下文环境被记录下来
+        // 此时还没有swapcontext
         vity::Fiber::GetThis();
         VITY_LOG_INFO(g_logger) << "main begin";
         vity::Fiber::ptr fiber(new vity::Fiber(run_in_fiber));
-        fiber->swapIn();
+        fiber->call();
         VITY_LOG_INFO(g_logger) << "main after swapIn";
-        fiber->swapIn();
+        fiber->call();
         VITY_LOG_INFO(g_logger) << "main after end";
-        fiber->swapIn();
+        fiber->call();
     }
     VITY_LOG_INFO(g_logger) << "main end -1";
-
 }
 int main(int argc,const char* argv[])
 {
     //test_ucontext();
-    //context_test();
+    // context_test();
+    // puts("333333333333333");
+    // swapcontext(&main1,&child1);
+    // puts("333333333333333");
 
     test_fiber();
     return 0;
