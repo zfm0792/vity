@@ -575,6 +575,7 @@ void FileLogAppender::log(Logger::ptr logger,LogLevel::Level level,LogEvent::ptr
 LogManager::LogManager()
 {
     m_root.reset(new Logger);
+    // 默认输出到stdout中
     m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
 
     m_loggers[m_root->m_name] = m_root;

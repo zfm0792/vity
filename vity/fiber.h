@@ -12,7 +12,7 @@ class Fiber : public std::enable_shared_from_this<Fiber>{
 friend class Scheduler;
 public:
     typedef std::shared_ptr<Fiber> ptr;
-
+    // 协程的状态 
     enum State{
         INIT,
         HOLD,
@@ -36,19 +36,20 @@ public:
     void reset(std::function<void()> cb);
     // 切换到当前协程
     void swapIn();
-    // 切换到后台执行
+    // 切换到出协程
     void swapOut();
 
     void call();
     void back();
-
+    // 获取协程id
     uint64_t getId() const { return m_id; }
+    // 获取协程状态
     State getState() const { return m_state; }
 
 public:
-    // 设置当前协程
+    // 设置当前协程 给线程局部变量赋值 表明是哪个协程在执行 
     static void SetThis(Fiber *f);
-    // 返回当前协程
+    // 获取当前的协程  线程局部变量
     static Fiber::ptr GetThis();
     // 切换到后台 并设置为Ready状态
     static void YieldToReady();
@@ -59,6 +60,7 @@ public:
 
     static void MainFunc();
     static void CallerMainFunc();
+    // 获取协程id
     static uint64_t GetFiberId();
 private:
 
@@ -75,6 +77,7 @@ private:
     std::function<void()> m_cb;
 
 };
+
 }
 
 #endif

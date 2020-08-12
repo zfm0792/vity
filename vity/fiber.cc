@@ -11,7 +11,7 @@ static Logger::ptr g_logger = VITY_LOG_NAME("system");
 static std::atomic<uint64_t> s_fiber_id {0};
 static std::atomic<uint64_t> s_fiber_count {0};
 
-static thread_local Fiber* t_fiber = nullptr;
+static thread_local Fiber* t_fiber = nullptr; // 正在执行着的协程
 static thread_local Fiber::ptr t_threadFiber = nullptr;
 
 static ConfigVar<uint32_t>::ptr g_fiber_stack_size = 
@@ -31,7 +31,7 @@ using StackAllocator = MallocStackAllocator;
 
 Fiber::Fiber(){
     m_state = EXEC;
-    SetThis(this);
+    SetThis(this); // 给main_fiber进行赋值  线程局部变量的t_fiber
     // 主协程的上下文 的状态
     if(getcontext(&m_ctx)){
         VITY_ASSERT2(false,"getcontext");
@@ -45,8 +45,10 @@ void Fiber::SetThis(Fiber *f){
     t_fiber = f;
 }
 // 返回当前协程
+// 协程的处理方式是: main_fiber ---- sub_fiber(执行完后 会被切换会main_fiber)  然后再由main_fiber进行重新处理
+// 返回的是线程局部变量  线程中的main_fiber
 Fiber::ptr Fiber::GetThis(){
-    if(t_fiber){
+    if(t_fiber){ // t_fiber 线程局部变量 如果有值   子线程 或者 主线程
         return t_fiber->shared_from_this();
     }
     Fiber::ptr main_fiber(new Fiber);
@@ -125,13 +127,14 @@ void Fiber::reset(std::function<void()> cb)
 }
 
 void Fiber::call(){
-    SetThis(this);
+    SetThis(this); // 切换t_fiebr为当前执行者的fiber
     m_state = EXEC;
     VITY_LOG_ERROR(g_logger) << getId();
-    if(swapcontext(&t_threadFiber->m_ctx,&m_ctx)){
+    if(swapcontext(&t_threadFiber->m_ctx,&m_ctx)){ // t_threadFiber 才是真正的主线程的main_fiber
         VITY_ASSERT2(false,"swapcontext");
     }
 }
+
 void Fiber::back(){
     SetThis(t_threadFiber.get());
     if(swapcontext(&m_ctx,&t_threadFiber->m_ctx)){
@@ -196,10 +199,11 @@ void Fiber::CallerMainFunc()
 //切换到当前协程
 void Fiber::swapIn()
 {
+    // 给t_fiber赋值
     SetThis(this);
     VITY_ASSERT(m_state != EXEC);
     m_state = EXEC; // 改变状态
-    // 切换上下文
+    // 切换上下文  --- Get到了t_fiber
     if(swapcontext(&Scheduler::GetMainFiber()->m_ctx,&m_ctx)){
         VITY_ASSERT2(false,"swapcontext");
     }

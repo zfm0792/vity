@@ -35,6 +35,8 @@ public:
     void stop();
 
     // 将协程或者回调加入到消息队列中
+    // 当主动调用schdule 的时候就会触发一个tickle() 
+    // 
     template<class FiberOrCb>
     void schedule(FiberOrCb fc,int thread = -1)
     {
@@ -88,6 +90,9 @@ private:
     }
 
 private:
+    // 线程和协程
+    // 结构 要么是线程 要么是协程回调
+    // 指定线程执行某个协程 根据线程id
     struct FiberAndThread{
         Fiber::ptr fiber;
         std::function<void()> cb;

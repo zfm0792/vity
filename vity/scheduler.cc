@@ -7,7 +7,7 @@ static vity::Logger::ptr g_logger = VITY_LOG_NAME("system");
 
 // 定义两个线程局部变量 线程局部变量 是归该线程本身所拥有  其他线程是不可以访问
 static thread_local Scheduler* t_scheduler = nullptr;
-static thread_local Fiber* t_fiber = nullptr;
+static thread_local Fiber* t_fiber = nullptr; // 线程中执行着的协程
 // 构造函数被主线程所调用  构建对象
 // 其他线程调用该函数  会出现怎样的效果???
 // 该类的内部维护着一个线程池  最好只能由主线程所调用
@@ -19,6 +19,7 @@ Scheduler::Scheduler(size_t threads,bool use_caller,const std::string& name)
     // 将自身加入到该调度器中进行调度
     // 将主线程的协程加入到该调度中
     if(use_caller){
+        // 主线程的main_fiber
         vity::Fiber::GetThis(); // 主线程的协程
         --threads; // 主线程 在被调度  因此 创建的线程数减少1  只有一个线程在被调度
 
@@ -114,14 +115,14 @@ void Scheduler::stop()
     if(m_rootFiber){
         tickle();
     }
-
+    // 如果是主线程的协程  则调用call 
     if(m_rootFiber){
         if(!stopping()){
-            m_rootFiber->call(); // 回收资源使用
+            m_rootFiber->call(); // 回收资源使用 CallerMainFunc()
         }
     }
 
-    // 
+    // 将所有的线程保存到thrs中
     std::vector<Thread::ptr> thrs;
     {
         MutexType::Lock lock(m_mutex);
@@ -144,7 +145,8 @@ void Scheduler::run()
     // 主线程中的线程局部变量在最开始的时候已经被赋值了(构造函数)
     // m_rootThread: 主线程线程id
     if(vity::GetThreadId() != m_rootThread){
-        t_fiber = Fiber::GetThis().get();// 给子线程创建一个协程
+        // 再run的时候将Fiber中的t_fiebr获取出来了
+        t_fiber = Fiber::GetThis().get();// 给子线程局部变量 赋值 负责管理的主协程
     }
     // 空闲协程执行的函数
     Fiber::ptr idle_fiber(new Fiber(std::bind(&Scheduler::idle,this)));
@@ -271,6 +273,8 @@ void Scheduler::tickle()
 {
     VITY_LOG_INFO(g_logger) << "tickle";
 }
+// 协程调度  怎样才算做停止??
+// 任务数为空 活跃的线程数为空 
 bool Scheduler::stopping()
 {
     MutexType::Lock lock(m_mutex);

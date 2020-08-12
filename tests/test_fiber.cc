@@ -89,9 +89,9 @@ void test_fiber()
         // swapcontext
         // 主协程的上下文环境被记录下来
         // 此时还没有swapcontext
-        vity::Fiber::GetThis();
+        vity::Fiber::GetThis(); // 创建了一个fiber 该fiber为main_fiber
         VITY_LOG_INFO(g_logger) << "main begin";
-        vity::Fiber::ptr fiber(new vity::Fiber(run_in_fiber));
+        vity::Fiber::ptr fiber(new vity::Fiber(run_in_fiber)); // 创建了一个sub_fiber
         fiber->call();
         VITY_LOG_INFO(g_logger) << "main after swapIn";
         fiber->call();

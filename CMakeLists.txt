@@ -27,6 +27,7 @@ set(LIB_SRC
     vity/thread.cc
     vity/fiber.cc
     vity/scheduler.cc
+    vity/iomanager.cc
     )
 
 add_library(vity SHARED ${LIB_SRC})
@@ -54,6 +55,10 @@ target_link_libraries(test_fiber ${LIBS})
 add_executable(test_scheduler tests/test_scheduler.cc)
 add_dependencies(test_scheduler vity)
 target_link_libraries(test_scheduler ${LIBS})
+
+add_executable(test_iomanager tests/test_iomanager.cc)
+add_dependencies(test_iomanager vity)
+target_link_libraries(test_iomanager ${LIBS})
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
