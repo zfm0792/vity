@@ -151,23 +151,30 @@ void Scheduler::run()
     Fiber::ptr cb_fiber;// 协程的回调
 
     // 从调度队列里面去取相应的协程 进行调度
+    // 此时有多个线程同时在run中运作
+    // 但是它们都有唯一的t_fiber
     FiberAndThread ft;
 
     while(true){
         ft.reset(); // 重置
+        // 线程在开始的时候  是空闲的 没有任何任务需要执行
         bool tickle_me = false;
         bool is_active = false;
         {
+            // 通过锁 ---  抢占式的调度 --- 谁抢到了锁 就由谁去执行
             MutexType::Lock lock(m_mutex);
             auto it = m_fibers.begin();
             // it  ---- callback  fiber threadId
             while(it != m_fibers.end()){
+                // m_fibers --- std::list<FiberAndThread> ----> thread == -1(默认值)
+                // it != GetThreadId()  不该由此线程调度
+                // it->thread == -1  表明谁抢到 就由谁调度
                 if(it->thread != -1 && it->thread != vity::GetThreadId()){
                     ++it;
-                    tickle_me = true;
+                    tickle_me = true; // 找到 需要唤醒该线程去执行
                     continue;
                 }
-                 // 如果it->thread 有值   说明 fiberOrCb是存在的  就需要去执行
+                 // 被抢到了  (找到了) 那么就一定有回调或者协程
                  VITY_ASSERT(it->fiber || it->cb);
                  // 如果该协程是执行中的  那么就继续下一个
                  if(it->fiber && it->fiber->getState() == Fiber::EXEC){
@@ -177,6 +184,7 @@ void Scheduler::run()
                  // 是一个协程 但是状态不是EXEC  待处理(调度 改变运行状态)
                  ft = *it;
                  m_fibers.erase(it);
+                 // 活跃线程数加1 ---  有空闲的线程被唤醒
                  ++m_activeThreadCount;
                  is_active = true;
                  break;
@@ -184,47 +192,60 @@ void Scheduler::run()
         }
 
         if(tickle_me){
-            tickle();
+            // 通知(唤醒线程执行) ---- epoll_wait() ----- 阻塞 write ---> epoll_wait() 被唤醒
+            tickle(); 
         }
-        // 取出来的协程不是TERM 以及EXCEPT 那么就去调度执行  改变其状态 切进去执行
+        // 检查 找到的是协程还是回调 --- 不能使结束状态以及异常 协程
         if(ft.fiber && (ft.fiber->getState() != Fiber::TERM
             && ft.fiber->getState() != Fiber::EXCEPT)){
-
+                // 切到协程内部执行
                 ft.fiber->swapIn();
+                // 执行完后  活跃的线程数减少1
                 --m_activeThreadCount;
 
-                // 切进去后 那里面变为READY
+                // 检查切到协程内部执行后 是否执行结束
+                // 如果没有结束(READ或者HOLD) 则继续加入到调度队列中被调度
                 if(ft.fiber->getState() == Fiber::READY){
-                    schedule(ft.fiber); // 加入到scheduler调度中
+                    schedule(ft.fiber);
                 }else if(ft.fiber->getState() != Fiber::TERM
                     && ft.fiber->getState() != Fiber::EXCEPT){
-                        ft.fiber->m_state = Fiber::HOLD;
+                        // 如果既不是TERM 也不是EXCEPT 就说明有可能 是HOLD或者INIT
+                        VITY_ASSERT((ft.fiber->m_state == Fiber::HOLD) 
+                                || (ft.fiber->m_state == Fiber::INIT))
+                        //ft.fiber->m_state = Fiber::HOLD;
                 }
                 ft.reset();
-        }else if(ft.cb){
+        }else if(ft.cb){ // 是回调 而非新协程
             if(cb_fiber){ // 不为空 则重置该协程中的执行体
-                cb_fiber->reset(ft.cb); // 重置协程函数 并重置状态
-            }else{ // 如果为空 则new一个新的协程给cb_fiber
+                cb_fiber->reset(ft.cb); // 重置协程 将回调设置为取出来的cb
+            }else{ 
+                // 如果为空 则new一个新的协程给cb_fiber
                 //首先生成新对象，然后引用计数减1，引用计数为0，故析构Fiber
                 //最后将新对象的指针交给智能指针
-                cb_fiber.reset(new Fiber(ft.cb));
+                cb_fiber.reset(new Fiber(ft.cb));// 给该回调创建一个新协程
             }
             ft.reset(); // 将内容清空
-            cb_fiber->swapIn(); // EXEC ft.cb
+            // 切入到协程指定的函数中
+            cb_fiber->swapIn();
+            // 执行完后 活跃的线程数减1
             --m_activeThreadCount;
+            // 检查状态是否是READY 如果是  则继续被调度
             if(cb_fiber->getState() == Fiber::READY){
                 schedule(cb_fiber);
                 cb_fiber.reset();
+                // 如果结束或者有异常 则将协程回调重置为nullptr
             }else if(cb_fiber->getState() == Fiber::EXCEPT
                 || cb_fiber->getState() == Fiber::TERM){
                     cb_fiber->reset(nullptr);
             }else{
+                // 改变协程的状态为HOLD
                 cb_fiber->m_state = Fiber::HOLD;
+                // 将协程释放
                 cb_fiber.reset();
             }
         }else{ 
-            // 既不是回调 也不是 fiber  说明是空闲的
-            if(is_active){
+            // 既不是回调(新协程) 也不是 协程  说明是空闲的
+            if(is_active){ // 检查是否是活跃的  或者说是 没有找到新的
                 --m_activeThreadCount;
                 continue;
             }
@@ -232,10 +253,14 @@ void Scheduler::run()
                 VITY_LOG_INFO(g_logger) << "idle fiber term";
                 break;
             }
+            // 空闲的线程数+1
             ++m_idleThreadCount;
+            // 并切入到空闲的线程执行中去 ----  epoll_wait() ----- 判断是否有新的数据连接到来
             idle_fiber->swapIn();
+            // 空闲的线程数件减1
             --m_idleThreadCount;
             if(idle_fiber->getState() != Fiber::TERM && idle_fiber->getState() != Fiber::EXCEPT){
+                //...????
                 idle_fiber->m_state = Fiber::HOLD;
             }
         }

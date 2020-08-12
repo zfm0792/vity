@@ -4,6 +4,7 @@
 #include <memory>
 #include <list>
 #include <string>
+#include <vector>
 #include "thread.h"
 #include "fiber.h"
 
